@@ -357,7 +357,7 @@
     border: 2.5px solid var(--border);
     border-radius: 20px;
     overflow: hidden;
-    cursor: pointer;
+    cursor: default;
     transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
     box-shadow: var(--card-shadow);
     animation: fadeUp 0.5s ease both;
@@ -433,14 +433,10 @@
   }
 
   .pledge-panel {
-    display: none;
+    display: block;
     border-top: 2px dashed var(--border);
     padding: 18px 22px 20px;
     background: var(--surface2);
-  }
-
-  .crew-card.expanded .pledge-panel {
-    display: block;
   }
 
   .pledge-label {
@@ -1251,7 +1247,7 @@ crew.forEach((m) => {
   card.className = 'crew-card';
   card.id = 'card-' + m.id;
   card.innerHTML = `
-    <div class="crew-card-header" onclick="toggleCard('${m.id}')">
+    <div class="crew-card-header">
       <div class="crew-info">
         <div class="rank-badge">${m.emoji}</div>
         <div class="crew-name">${m.name}</div>
@@ -1259,7 +1255,6 @@ crew.forEach((m) => {
       </div>
       <div class="crew-amount-col">
         <div class="crew-amount">${m.amount.toLocaleString()}개</div>
-        <span class="crew-expand">▼</span>
       </div>
     </div>
     <div class="pledge-panel">
@@ -1289,9 +1284,6 @@ if (saved['leader']) {
   c.classList.remove('pledge-empty');
 }
 
-function toggleCard(id) {
-  document.getElementById('card-' + id).classList.toggle('expanded');
-}
 
 // ===== 관리자 시스템 =====
 const ADMIN_PW = 'buin2025'; // 비밀번호
