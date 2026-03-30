@@ -1523,15 +1523,27 @@ function renderAdminTables() {
 window.saveAmount = async function(id) {
   if (id === 'leader') {
     const val = parseInt(document.getElementById('amt-leader').value) || 0;
+    // gLeader 직접 업데이트
+    gLeader.amount = val;
     await fbSet('leader/amount', val);
+    // 수장 카드 금액 즉시 반영
+    const el = document.querySelector('.member-amount');
+    if (el) el.textContent = val.toLocaleString() + '개';
     showToast('✅ 수장 금액 저장!');
   } else {
     const val = parseInt(document.getElementById('amt-' + id).value) || 0;
-    await fbSet('members/' + id + '/amount', val);
+    // gMembers 직접 업데이트
     const m = gMembers.find(x => x.id === id);
+    if (m) m.amount = val;
+    await fbSet('members/' + id + '/amount', val);
+    // 해당 크루원 카드 금액 즉시 반영
+    const amtEl = document.querySelector('#card-' + id + ' .crew-amount');
+    if (amtEl) amtEl.textContent = val.toLocaleString() + '개';
     showToast('✅ ' + (m ? m.name : id) + ' 금액 저장!');
   }
-  // 관리자 테이블 즉시 갱신
+  // 총합 + 바 차트 즉시 갱신
+  renderTotals();
+  renderBarChart();
   renderAdminTables();
 };
 
