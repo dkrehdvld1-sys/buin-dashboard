@@ -1424,7 +1424,7 @@ function renderMainNotices() {
 }
 
 // ===== 관리자 시스템 =====
-const ADMIN_PW = 'buin2025';
+let ADMIN_PW = null; // Firebase에서 로드
 
 window.openAdminModal = function() {
   document.getElementById('admin-modal').classList.add('active');
@@ -1437,20 +1437,38 @@ window.closeAdminModal = function() {
   document.getElementById('admin-pw-error').textContent = '';
 };
 
-window.confirmAdmin = function() {
+window.confirmAdmin = async function() {
   const pw = document.getElementById('admin-pw-input').value;
-  if (pw === ADMIN_PW) {
-    closeAdminModal();
-    document.getElementById('admin-panel').classList.add('active');
-    document.getElementById('admin-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    renderAdminTables();
-    renderNoticeList();
-    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
-    showToast('✅ 관리자 모드 활성화!');
-  } else {
-    document.getElementById('admin-pw-error').textContent = '❌ 비밀번호가 틀렸어요!';
-    document.getElementById('admin-pw-input').value = '';
-    document.getElementById('admin-pw-input').focus();
+  const errEl = document.getElementById('admin-pw-error');
+  const btnConfirm = document.getElementById('btn-confirm-admin');
+
+  // 버튼 로딩 상태
+  btnConfirm.textContent = '확인 중...';
+  btnConfirm.disabled = true;
+
+  try {
+    // Firebase에서 비밀번호 가져오기
+    const snap = await get(ref(db, 'admin/pw'));
+    ADMIN_PW = snap.exists() ? snap.val() : null;
+
+    if (ADMIN_PW && pw === ADMIN_PW) {
+      closeAdminModal();
+      document.getElementById('admin-panel').classList.add('active');
+      document.getElementById('admin-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      renderAdminTables();
+      renderNoticeList();
+      document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+      showToast('✅ 관리자 모드 활성화!');
+    } else {
+      errEl.textContent = '❌ 비밀번호가 틀렸어요!';
+      document.getElementById('admin-pw-input').value = '';
+      document.getElementById('admin-pw-input').focus();
+    }
+  } catch(e) {
+    errEl.textContent = '❌ 인증 오류가 발생했어요. 다시 시도해주세요.';
+  } finally {
+    btnConfirm.textContent = '확인';
+    btnConfirm.disabled = false;
   }
 };
 
