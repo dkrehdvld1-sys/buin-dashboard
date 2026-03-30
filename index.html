@@ -1228,17 +1228,43 @@ async function initApp() {
 }
 
 // ===== 실시간 리스너 (다른 사람이 바꾸면 자동 반영) =====
+let firstMemberLoad = true;
+let firstLeaderLoad = true;
+
 function listenRealtime() {
   onValue(ref(db, 'members'), snap => {
-    if (snap.exists()) { gMembers = Object.values(snap.val()); renderMemberCards(); renderBarChart(); renderTotals(); }
+    if (!snap.exists()) return;
+    gMembers = Object.values(snap.val());
+    if (firstMemberLoad) {
+      renderMemberCards();
+      firstMemberLoad = false;
+    } else {
+      // 카드 재생성 없이 금액 숫자만 업데이트
+      gMembers.forEach(m => {
+        const amtEl = document.querySelector('#card-' + m.id + ' .crew-amount');
+        if (amtEl) amtEl.textContent = (m.amount||0).toLocaleString() + '개';
+      });
+    }
+    renderBarChart();
+    renderTotals();
   });
+
   onValue(ref(db, 'leader'), snap => {
-    if (snap.exists()) { gLeader = snap.val(); renderLeaderCard(); renderBarChart(); renderTotals(); }
+    if (!snap.exists()) return;
+    gLeader = snap.val();
+    firstLeaderLoad = false;
+    // 수장 금액만 업데이트
+    const el = document.querySelector('.member-amount');
+    if (el) el.textContent = (gLeader.amount||0).toLocaleString() + '개';
+    renderBarChart();
+    renderTotals();
   });
+
   onValue(ref(db, 'pledges'), snap => {
     gPledges = snap.exists() ? snap.val() : {};
     renderPledges();
   });
+
   onValue(ref(db, 'notices'), snap => {
     gNotices = snap.exists() ? Object.values(snap.val()).sort((a,b) => b.id - a.id) : [];
     renderMainNotices();
@@ -1505,6 +1531,8 @@ window.saveAmount = async function(id) {
     const m = gMembers.find(x => x.id === id);
     showToast('✅ ' + (m ? m.name : id) + ' 금액 저장!');
   }
+  // 관리자 테이블 즉시 갱신
+  renderAdminTables();
 };
 
 window.deleteMember = async function(id) {
