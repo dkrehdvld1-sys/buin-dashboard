@@ -1148,158 +1148,270 @@
 <div class="toast" id="toast"></div>
 
 
-<script>
-const crew = [
+<script type="module">
+// ===== Firebase 연동 =====
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBfLGsj0r17LjrmyCmrRV4wLUSS-usOPoU",
+  authDomain: "buin-dashboard.firebaseapp.com",
+  databaseURL: "https://buin-dashboard-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "buin-dashboard",
+  storageBucket: "buin-dashboard.firebasestorage.app",
+  messagingSenderId: "1086452202281",
+  appId: "1:1086452202281:web:5bb0ae7a3f7df7f8d99538"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// ===== 기본 데이터 =====
+const DEFAULT_MEMBERS = [
   { id: 'kingnyang', name: '킹냥이', amount: 618000, emoji: '🐱', url: 'https://www.sooplive.com/station/sa5791' },
-  { id: 'yusie',    name: '유시에',  amount: 177000, emoji: '🌙', url: 'https://www.sooplive.com/station/sie4yu' },
-  { id: 'pyou',     name: '표우',    amount: 186000, emoji: '🎪', url: 'https://www.sooplive.com/station/pyowoo' },
-  { id: 'bichon',   name: '비숑',    amount: 154000, emoji: '🐩', url: 'https://www.sooplive.com/station/merryou' },
-  { id: 'haruvi',   name: '하루비',  amount: 132000, emoji: '🌻', url: 'https://www.sooplive.com/station/callmeharuby' },
-  { id: 'gguybok',  name: '뀨복',    amount: 125000, emoji: '🐸', url: 'https://www.sooplive.com/station/kkyubog' },
-  { id: 'haesol',   name: '해솔',    amount: 140000, emoji: '🌿', url: 'https://www.sooplive.com/station/liloolil' },
-  { id: 'nyanya',   name: '냐냐',    amount: 72000,  emoji: '🐾', url: 'https://www.sooplive.com/station/nyanyavkr2' },
-  { id: 'somi',     name: '소미',    amount: 153000, emoji: '🍓', url: 'https://www.sooplive.com/station/ry0135' },
-  { id: 'nboring',  name: '너보링',  amount: 200000, emoji: '🌈', url: 'https://www.sooplive.com/station/hibby1004' },
-  { id: 'bur',      name: '부르',    amount: 250000, emoji: '🫧', url: 'https://www.sooplive.com/station/bureu2002' },
+  { id: 'yusie',     name: '유시에', amount: 177000, emoji: '🌙', url: 'https://www.sooplive.com/station/sie4yu' },
+  { id: 'pyou',      name: '표우',   amount: 186000, emoji: '🎪', url: 'https://www.sooplive.com/station/pyowoo' },
+  { id: 'bichon',    name: '비숑',   amount: 154000, emoji: '🐩', url: 'https://www.sooplive.com/station/merryou' },
+  { id: 'haruvi',    name: '하루비', amount: 132000, emoji: '🌻', url: 'https://www.sooplive.com/station/callmeharuby' },
+  { id: 'gguybok',   name: '뀨복',   amount: 125000, emoji: '🐸', url: 'https://www.sooplive.com/station/kkyubog' },
+  { id: 'haesol',    name: '해솔',   amount: 140000, emoji: '🌿', url: 'https://www.sooplive.com/station/liloolil' },
+  { id: 'nyanya',    name: '냐냐',   amount: 72000,  emoji: '🐾', url: 'https://www.sooplive.com/station/nyanyavkr2' },
+  { id: 'somi',      name: '소미',   amount: 153000, emoji: '🍓', url: 'https://www.sooplive.com/station/ry0135' },
+  { id: 'nboring',   name: '너보링', amount: 200000, emoji: '🌈', url: 'https://www.sooplive.com/station/hibby1004' },
+  { id: 'bur',       name: '부르',   amount: 250000, emoji: '🫧', url: 'https://www.sooplive.com/station/bureu2002' },
 ];
+const DEFAULT_LEADER = { id: 'leader', name: 'Alo.조경훈', amount: 540000, emoji: '👑', url: 'https://www.sooplive.com/station/cnsgkcnehd74' };
 
-const leader = { id: 'leader', name: 'Alo.조경훈', amount: 540000, url: 'https://www.sooplive.com/station/cnsgkcnehd74' };
+// ===== 전역 상태 =====
+let gMembers = DEFAULT_MEMBERS;
+let gLeader = DEFAULT_LEADER;
+let gPledges = {};
+let gNotices = [];
 
-function saveData() {
-  const data = {};
-  [leader, ...crew].forEach(m => {
-    const el = document.getElementById(m.id + '-pledge-content');
-    if (el) data[m.id] = el.dataset.value || '';
+// ===== Firebase 읽기/쓰기 헬퍼 =====
+async function fbGet(path) {
+  const snap = await get(ref(db, path));
+  return snap.exists() ? snap.val() : null;
+}
+function fbSet(path, val) { return set(ref(db, path), val); }
+function fbUpdate(path, val) { return update(ref(db, path), val); }
+function fbRemove(path) { return remove(ref(db, path)); }
+
+// ===== 초기 로딩 =====
+async function initApp() {
+  // 로딩 표시
+  document.getElementById('total-display').textContent = '로딩 중...';
+
+  // Firebase에서 데이터 읽기
+  const [fbMembers, fbLeader, fbPledges, fbNotices] = await Promise.all([
+    fbGet('members'),
+    fbGet('leader'),
+    fbGet('pledges'),
+    fbGet('notices'),
+  ]);
+
+  gMembers = fbMembers ? Object.values(fbMembers) : DEFAULT_MEMBERS;
+  gLeader  = fbLeader  || DEFAULT_LEADER;
+  gPledges = fbPledges || {};
+  gNotices = fbNotices ? Object.values(fbNotices).sort((a,b) => b.id - a.id) : [];
+
+  // Firebase에 기본 멤버 데이터가 없으면 최초 1회 저장
+  if (!fbMembers) {
+    const membersObj = {};
+    DEFAULT_MEMBERS.forEach(m => membersObj[m.id] = m);
+    await fbSet('members', membersObj);
+  }
+  if (!fbLeader) await fbSet('leader', DEFAULT_LEADER);
+
+  renderAll();
+  listenRealtime();
+}
+
+// ===== 실시간 리스너 (다른 사람이 바꾸면 자동 반영) =====
+function listenRealtime() {
+  onValue(ref(db, 'members'), snap => {
+    if (snap.exists()) { gMembers = Object.values(snap.val()); renderMemberCards(); renderBarChart(); renderTotals(); }
   });
-  localStorage.setItem('buin_pledges_v2', JSON.stringify(data));
+  onValue(ref(db, 'leader'), snap => {
+    if (snap.exists()) { gLeader = snap.val(); renderLeaderCard(); renderBarChart(); renderTotals(); }
+  });
+  onValue(ref(db, 'pledges'), snap => {
+    gPledges = snap.exists() ? snap.val() : {};
+    renderPledges();
+  });
+  onValue(ref(db, 'notices'), snap => {
+    gNotices = snap.exists() ? Object.values(snap.val()).sort((a,b) => b.id - a.id) : [];
+    renderMainNotices();
+  });
 }
 
-function loadData() {
-  try { return JSON.parse(localStorage.getItem('buin_pledges_v2') || '{}'); }
-  catch { return {}; }
+// ===== 전체 렌더 =====
+function renderAll() {
+  renderTotals();
+  renderBarChart();
+  renderLeaderCard();
+  renderMemberCards();
+  renderPledges();
+  renderMainNotices();
 }
 
-const total = crew.reduce((s, m) => s + m.amount, 0) + leader.amount;
-document.getElementById('total-display').textContent = total.toLocaleString() + '개';
-document.getElementById('member-count').textContent = (crew.length + 1) + '명';
+// 총합
+function renderTotals() {
+  const total = gMembers.reduce((s,m) => s + (m.amount||0), 0) + (gLeader.amount||0);
+  document.getElementById('total-display').textContent = total.toLocaleString() + '개';
+  document.getElementById('member-count').textContent = (gMembers.length + 1) + '명';
+}
 
-const allMembers = [leader, ...crew];
-const maxAmt = Math.max(...allMembers.map(m => m.amount));
-const barChart = document.getElementById('bar-chart');
-allMembers.forEach(m => {
-  const pct = (m.amount / maxAmt * 100).toFixed(1);
-  const isLeader = m.id === 'leader';
-  const el = document.createElement('div');
-  el.className = 'bar-row';
-  el.innerHTML = `
-    <div class="bar-name">${m.name}</div>
-    <div class="bar-track"><div class="bar-fill ${isLeader ? 'leader-bar' : ''}" style="width:0%" data-pct="${pct}"></div></div>
-    <div class="bar-val">${(m.amount/10000).toFixed(0)}만개</div>
-  `;
-  barChart.appendChild(el);
-});
-setTimeout(() => {
-  document.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.pct + '%');
-}, 250);
+// 바 차트
+function renderBarChart() {
+  const barChart = document.getElementById('bar-chart');
+  barChart.innerHTML = '';
+  const allMembers = [gLeader, ...gMembers];
+  const maxAmt = Math.max(...allMembers.map(m => m.amount||0));
+  allMembers.forEach(m => {
+    const pct = maxAmt ? ((m.amount||0) / maxAmt * 100).toFixed(1) : 0;
+    const isLeader = m.id === 'leader';
+    const el = document.createElement('div');
+    el.className = 'bar-row';
+    el.innerHTML = `
+      <div class="bar-name">${m.name}</div>
+      <div class="bar-track"><div class="bar-fill ${isLeader ? 'leader-bar' : ''}" style="width:0%" data-pct="${pct}"></div></div>
+      <div class="bar-val">${((m.amount||0)/10000).toFixed(0)}만개</div>
+    `;
+    barChart.appendChild(el);
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.pct + '%');
+  }, 100);
+}
 
-function startEdit(id) {
+// 수장 카드
+function renderLeaderCard() {
+  const el = document.querySelector('.member-amount');
+  if (el) el.textContent = (gLeader.amount||0).toLocaleString() + '개';
+}
+
+// 크루원 카드
+function renderMemberCards() {
+  const grid = document.getElementById('crew-grid');
+  grid.innerHTML = '';
+  gMembers.forEach((m, i) => {
+    const card = document.createElement('div');
+    card.className = 'crew-card';
+    card.id = 'card-' + m.id;
+    card.style.animationDelay = (i * 0.05) + 's';
+    card.innerHTML = `
+      <div class="crew-card-header">
+        <div class="crew-info">
+          <div class="rank-badge">${m.emoji||'⭐'}</div>
+          <div>
+            <div class="crew-name">${m.name}</div>
+            <a class="station-link" href="${m.url||'#'}" target="_blank" onclick="event.stopPropagation()">📺 방송국</a>
+          </div>
+        </div>
+        <div class="crew-amount-col">
+          <div class="crew-amount">${(m.amount||0).toLocaleString()}개</div>
+        </div>
+      </div>
+      <div class="pledge-panel">
+        <div class="pledge-label">📌 공약</div>
+        <div id="${m.id}-pledge-content" class="pledge-text ${gPledges[m.id] ? '' : 'pledge-empty'}" data-value="${gPledges[m.id]||''}">${gPledges[m.id] || '— 공약 미입력 —'}</div>
+        <div id="${m.id}-pledge-edit" style="display:none;">
+          <textarea class="pledge-input" id="${m.id}-pledge-input" placeholder="${m.name}의 공약을 입력하세요 ${m.emoji||''}"></textarea>
+          <div class="pledge-actions">
+            <button class="btn btn-edit" onclick="cancelEdit('${m.id}')">취소</button>
+            <button class="btn btn-save" onclick="savePledge('${m.id}')">저장하기</button>
+          </div>
+        </div>
+        <div class="edit-btn-wrap admin-only" id="${m.id}-pledge-btn" style="display:none;">
+          <button class="btn btn-edit" onclick="startEdit('${m.id}')">✏️ 공약 편집</button>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// 공약 표시 갱신
+function renderPledges() {
+  // 크루원
+  gMembers.forEach(m => {
+    const el = document.getElementById(m.id + '-pledge-content');
+    if (!el) return;
+    const val = gPledges[m.id] || '';
+    el.dataset.value = val;
+    el.textContent = val || '— 공약 미입력 —';
+    el.classList.toggle('pledge-empty', !val);
+  });
+  // 수장
+  const lc = document.getElementById('leader-pledge-content');
+  if (lc) {
+    const val = gPledges['leader'] || '';
+    lc.dataset.value = val;
+    lc.textContent = val || '— 공약 미입력 —';
+    lc.classList.toggle('pledge-empty', !val);
+  }
+}
+
+// ===== 공약 편집 =====
+window.startEdit = function(id) {
   document.getElementById(id + '-pledge-content').style.display = 'none';
   document.getElementById(id + '-pledge-edit').style.display = 'block';
   document.getElementById(id + '-pledge-btn').style.display = 'none';
   const input = document.getElementById(id + '-pledge-input');
-  input.value = document.getElementById(id + '-pledge-content').dataset.value || '';
+  input.value = gPledges[id] || '';
   input.focus();
-}
+};
 
-function cancelEdit(id) {
+window.cancelEdit = function(id) {
   document.getElementById(id + '-pledge-content').style.display = 'block';
   document.getElementById(id + '-pledge-edit').style.display = 'none';
   document.getElementById(id + '-pledge-btn').style.display = 'block';
-}
+};
 
-function savePledge(id) {
+window.savePledge = async function(id) {
   const val = document.getElementById(id + '-pledge-input').value.trim();
-  const content = document.getElementById(id + '-pledge-content');
-  content.dataset.value = val;
-  if (val) {
-    content.textContent = val;
-    content.classList.remove('pledge-empty');
-  } else {
-    content.textContent = '— 공약 미입력 —';
-    content.classList.add('pledge-empty');
-  }
+  await fbSet('pledges/' + id, val || null);
   cancelEdit(id);
-  saveData();
-}
+  showToast('✅ 공약 저장 완료!');
+};
 
+// 수장 공약 토글
 let leaderOpen = false;
-function toggleLeader() {
+window.toggleLeader = function() {
   leaderOpen = !leaderOpen;
   document.getElementById('leader-pledge-box').style.display = leaderOpen ? 'block' : 'none';
-}
+};
 
-const saved = loadData();
-const grid = document.getElementById('crew-grid');
-
-crew.forEach((m) => {
-  const pledgeVal = saved[m.id] || '';
-  const card = document.createElement('div');
-  card.className = 'crew-card';
-  card.id = 'card-' + m.id;
-  card.innerHTML = `
-    <div class="crew-card-header">
-      <div class="crew-info">
-        <div class="rank-badge">${m.emoji}</div>
-        <div class="crew-name">${m.name}</div>
-        <a class="station-link" href="${m.url}" target="_blank" onclick="event.stopPropagation()">📺 방송국</a>
-      </div>
-      <div class="crew-amount-col">
-        <div class="crew-amount">${m.amount.toLocaleString()}개</div>
-      </div>
+// ===== 공지사항 =====
+function renderMainNotices() {
+  const el = document.getElementById('main-notices');
+  if (!el) return;
+  if (!gNotices.length) { el.innerHTML = ''; return; }
+  el.innerHTML = gNotices.map(n => `
+    <div class="notice-banner">
+      <div class="notice-banner-title">📢 ${n.title}</div>
+      <div class="notice-banner-body">${n.body}</div>
+      <div class="notice-banner-date">${n.date}</div>
     </div>
-    <div class="pledge-panel">
-      <div class="pledge-label">📌 공약</div>
-      <div id="${m.id}-pledge-content" class="pledge-text ${pledgeVal ? '' : 'pledge-empty'}" data-value="">${pledgeVal || '— 공약 미입력 —'}</div>
-      <div id="${m.id}-pledge-edit" style="display:none;">
-        <textarea class="pledge-input" id="${m.id}-pledge-input" placeholder="${m.name}의 공약을 입력하세요 ${m.emoji}"></textarea>
-        <div class="pledge-actions">
-          <button class="btn btn-edit" onclick="cancelEdit('${m.id}')">취소</button>
-          <button class="btn btn-save" onclick="savePledge('${m.id}')">저장하기</button>
-        </div>
-      </div>
-      <div class="edit-btn-wrap admin-only" id="${m.id}-pledge-btn" style="display:none;">
-        <button class="btn btn-edit" onclick="startEdit('${m.id}')">✏️ 공약 편집</button>
-      </div>
-    </div>
-  `;
-  // set data-value after creation to avoid HTML injection
-  card.querySelector('[id$="-pledge-content"]').dataset.value = pledgeVal;
-  grid.appendChild(card);
-});
-
-if (saved['leader']) {
-  const c = document.getElementById('leader-pledge-content');
-  c.dataset.value = saved['leader'];
-  c.textContent = saved['leader'];
-  c.classList.remove('pledge-empty');
+  `).join('');
 }
-
 
 // ===== 관리자 시스템 =====
-const ADMIN_PW = 'buin2025'; // 비밀번호
+const ADMIN_PW = 'buin2025';
 
-function openAdminModal() {
+window.openAdminModal = function() {
   document.getElementById('admin-modal').classList.add('active');
   setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
-}
+};
 
-function closeAdminModal() {
+window.closeAdminModal = function() {
   document.getElementById('admin-modal').classList.remove('active');
   document.getElementById('admin-pw-input').value = '';
   document.getElementById('admin-pw-error').textContent = '';
-}
+};
 
-function confirmAdmin() {
+window.confirmAdmin = function() {
   const pw = document.getElementById('admin-pw-input').value;
   if (pw === ADMIN_PW) {
     closeAdminModal();
@@ -1307,7 +1419,6 @@ function confirmAdmin() {
     document.getElementById('admin-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     renderAdminTables();
     renderNoticeList();
-    // 공약 편집 버튼 보이기
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
     showToast('✅ 관리자 모드 활성화!');
   } else {
@@ -1315,135 +1426,66 @@ function confirmAdmin() {
     document.getElementById('admin-pw-input').value = '';
     document.getElementById('admin-pw-input').focus();
   }
-}
+};
 
-function logoutAdmin() {
+window.logoutAdmin = function() {
   document.getElementById('admin-panel').classList.remove('active');
-  // 공약 편집 버튼 숨기기
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   showToast('👋 로그아웃 완료');
-}
+};
 
-// 관리자 공약 저장 (멤버 관리 탭에서)
-function adminSavePledge(id) {
-  const input = document.getElementById('admin-pledge-' + id);
-  if (!input) return;
-  const val = input.value.trim();
-  // localStorage에 저장
-  const pledgeData = loadData();
-  pledgeData[id] = val;
-  localStorage.setItem('buin_pledges_v2', JSON.stringify(pledgeData));
-  // 메인 카드에 즉시 반영
-  const contentEl = document.getElementById(id + '-pledge-content');
-  if (contentEl) {
-    contentEl.dataset.value = val;
-    contentEl.textContent = val || '— 공약 미입력 —';
-    contentEl.classList.toggle('pledge-empty', !val);
-  }
-  showToast('✅ ' + id + ' 공약 저장!');
-}
-
-function switchTab(tab) {
+window.switchTab = function(tab) {
   document.querySelectorAll('.admin-tab').forEach((t, i) => {
     const tabs = ['notice','amount','member','reset'];
     t.classList.toggle('active', tabs[i] === tab);
   });
   document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-}
+};
 
-// 멤버 데이터 로드/저장
-function getMemberData() {
-  try { return JSON.parse(localStorage.getItem('buin_members_v2') || 'null'); }
-  catch { return null; }
-}
-
-function saveMemberData(data) {
-  localStorage.setItem('buin_members_v2', JSON.stringify(data));
-}
-
-// 현재 멤버 목록 (커스텀 or 기본)
-function getCurrentMembers() {
-  const saved = getMemberData();
-  if (saved) return saved;
-  return [
-    { id: 'kingnyang', name: '킹냥이', amount: 618000, emoji: '🐱', url: 'https://www.sooplive.com/station/sa5791' },
-    { id: 'yusie',     name: '유시에', amount: 177000, emoji: '🌙', url: 'https://www.sooplive.com/station/sie4yu' },
-    { id: 'pyou',      name: '표우',   amount: 186000, emoji: '🎪', url: 'https://www.sooplive.com/station/pyowoo' },
-    { id: 'bichon',    name: '비숑',   amount: 154000, emoji: '🐩', url: 'https://www.sooplive.com/station/merryou' },
-    { id: 'haruvi',    name: '하루비', amount: 132000, emoji: '🌻', url: 'https://www.sooplive.com/station/callmeharuby' },
-    { id: 'gguybok',   name: '뀨복',   amount: 125000, emoji: '🐸', url: 'https://www.sooplive.com/station/kkyubog' },
-    { id: 'haesol',    name: '해솔',   amount: 140000, emoji: '🌿', url: 'https://www.sooplive.com/station/liloolil' },
-    { id: 'nyanya',    name: '냐냐',   amount: 72000,  emoji: '🐾', url: 'https://www.sooplive.com/station/nyanyavkr2' },
-    { id: 'somi',      name: '소미',   amount: 153000, emoji: '🍓', url: 'https://www.sooplive.com/station/ry0135' },
-    { id: 'nboring',   name: '너보링', amount: 200000, emoji: '🌈', url: 'https://www.sooplive.com/station/hibby1004' },
-    { id: 'bur',       name: '부르',   amount: 250000, emoji: '🫧', url: 'https://www.sooplive.com/station/bureu2002' },
-  ];
-}
-
-function getLeaderData() {
-  try { return JSON.parse(localStorage.getItem('buin_leader_v2') || 'null'); }
-  catch { return null; }
-}
-
-function saveLeaderData(data) {
-  localStorage.setItem('buin_leader_v2', JSON.stringify(data));
-}
-
-function getCurrentLeader() {
-  return getLeaderData() || { id: 'leader', name: 'Alo.조경훈', amount: 540000, url: 'https://www.sooplive.com/station/cnsgkcnehd74' };
-}
-
-// 금액 수정 테이블 렌더
+// 관리자 테이블 렌더
 function renderAdminTables() {
-  const members = getCurrentMembers();
-  const ldr = getCurrentLeader();
   const tbody = document.getElementById('amount-table-body');
   const mtbody = document.getElementById('member-table-body');
   tbody.innerHTML = '';
   mtbody.innerHTML = '';
 
-  // 수장 row
-  const leaderRow = `<tr style="background:#fff8f0;">
-    <td><span style="font-family:'Jua',sans-serif;">${ldr.emoji || '👑'} ${ldr.name}</span> <span style="font-size:0.65rem;color:var(--gold);">수장</span></td>
-    <td style="color:var(--gold);font-weight:700;">${ldr.amount.toLocaleString()}개</td>
-    <td><input class="amount-input" id="amt-leader" type="number" value="${ldr.amount}"></td>
+  // 수장
+  tbody.innerHTML += `<tr style="background:#fff8f0;">
+    <td><span style="font-family:'Jua',sans-serif;">👑 ${gLeader.name}</span> <span style="font-size:0.65rem;color:var(--gold);">수장</span></td>
+    <td style="color:var(--gold);font-weight:700;">${(gLeader.amount||0).toLocaleString()}개</td>
+    <td><input class="amount-input" id="amt-leader" type="number" value="${gLeader.amount||0}"></td>
     <td><button class="btn-sm btn-sm-purple" onclick="saveAmount('leader')">저장</button></td>
   </tr>`;
-  tbody.innerHTML += leaderRow;
 
-  // 수장도 멤버 관리 테이블에 추가
-  const leaderPledgeVal = (loadData()['leader'] || '');
-  const ldrUrl = ldr.url || '';
   mtbody.innerHTML += `<tr style="background:#fff8f0;">
-    <td><span style="font-family:'Jua',sans-serif;">👑 ${ldr.name}</span> <span style="font-size:0.65rem;color:var(--gold);">수장</span></td>
-    <td>${ldr.amount.toLocaleString()}개</td>
-    <td><a href="${ldrUrl}" target="_blank" style="font-size:0.72rem;color:var(--accent);">📺 링크</a></td>
+    <td><span style="font-family:'Jua',sans-serif;">👑 ${gLeader.name}</span> <span style="font-size:0.65rem;color:var(--gold);">수장</span></td>
+    <td>${(gLeader.amount||0).toLocaleString()}개</td>
+    <td><a href="${gLeader.url||'#'}" target="_blank" style="font-size:0.72rem;color:var(--accent);">📺 링크</a></td>
     <td>
       <div style="display:flex;flex-direction:column;gap:5px;min-width:160px;">
-        <textarea id="admin-pledge-leader" class="amount-input" style="width:100%;min-height:55px;resize:vertical;border-radius:10px;padding:6px 10px;font-size:0.8rem;" placeholder="공약 입력...">${leaderPledgeVal}</textarea>
+        <textarea id="admin-pledge-leader" class="amount-input" style="width:100%;min-height:55px;resize:vertical;border-radius:10px;padding:6px 10px;font-size:0.8rem;" placeholder="공약 입력...">${gPledges['leader']||''}</textarea>
         <button class="btn-sm btn-sm-green" onclick="adminSavePledge('leader')">저장</button>
       </div>
     </td>
     <td></td>
   </tr>`;
 
-  members.forEach(m => {
+  gMembers.forEach(m => {
     tbody.innerHTML += `<tr>
-      <td><span style="font-family:'Jua',sans-serif;">${m.emoji} ${m.name}</span></td>
-      <td style="color:var(--accent3);font-weight:700;">${m.amount.toLocaleString()}개</td>
-      <td><input class="amount-input" id="amt-${m.id}" type="number" value="${m.amount}"></td>
+      <td><span style="font-family:'Jua',sans-serif;">${m.emoji||'⭐'} ${m.name}</span></td>
+      <td style="color:var(--accent3);font-weight:700;">${(m.amount||0).toLocaleString()}개</td>
+      <td><input class="amount-input" id="amt-${m.id}" type="number" value="${m.amount||0}"></td>
       <td><button class="btn-sm btn-sm-purple" onclick="saveAmount('${m.id}')">저장</button></td>
     </tr>`;
 
-    const pledgeVal_admin = (loadData()[m.id] || '');
     mtbody.innerHTML += `<tr>
-      <td><span style="font-family:'Jua',sans-serif;">${m.emoji} ${m.name}</span></td>
-      <td>${m.amount.toLocaleString()}개</td>
-      <td><a href="${m.url}" target="_blank" style="font-size:0.72rem;color:var(--accent);">📺 링크</a></td>
+      <td><span style="font-family:'Jua',sans-serif;">${m.emoji||'⭐'} ${m.name}</span></td>
+      <td>${(m.amount||0).toLocaleString()}개</td>
+      <td><a href="${m.url||'#'}" target="_blank" style="font-size:0.72rem;color:var(--accent);">📺 링크</a></td>
       <td>
         <div style="display:flex;flex-direction:column;gap:5px;min-width:160px;">
-          <textarea id="admin-pledge-${m.id}" class="amount-input" style="width:100%;min-height:55px;resize:vertical;border-radius:10px;padding:6px 10px;font-size:0.8rem;" placeholder="공약 입력...">${pledgeVal_admin}</textarea>
+          <textarea id="admin-pledge-${m.id}" class="amount-input" style="width:100%;min-height:55px;resize:vertical;border-radius:10px;padding:6px 10px;font-size:0.8rem;" placeholder="공약 입력...">${gPledges[m.id]||''}</textarea>
           <button class="btn-sm btn-sm-green" onclick="adminSavePledge('${m.id}')">저장</button>
         </div>
       </td>
@@ -1452,93 +1494,56 @@ function renderAdminTables() {
   });
 }
 
-function saveAmount(id) {
+window.saveAmount = async function(id) {
   if (id === 'leader') {
-    const ldr = getCurrentLeader();
     const val = parseInt(document.getElementById('amt-leader').value) || 0;
-    ldr.amount = val;
-    saveLeaderData(ldr);
+    await fbSet('leader/amount', val);
     showToast('✅ 수장 금액 저장!');
   } else {
-    const members = getCurrentMembers();
-    const m = members.find(x => x.id === id);
-    if (!m) return;
-    m.amount = parseInt(document.getElementById('amt-' + id).value) || 0;
-    saveMemberData(members);
-    showToast('✅ ' + m.name + ' 금액 저장!');
+    const val = parseInt(document.getElementById('amt-' + id).value) || 0;
+    await fbSet('members/' + id + '/amount', val);
+    const m = gMembers.find(x => x.id === id);
+    showToast('✅ ' + (m ? m.name : id) + ' 금액 저장!');
   }
-  refreshMain();
-  renderAdminTables();
-}
+};
 
-function deleteMember(id) {
+window.deleteMember = async function(id) {
   if (!confirm('정말 삭제할까요?')) return;
-  const members = getCurrentMembers().filter(m => m.id !== id);
-  saveMemberData(members);
-  renderAdminTables();
-  refreshMain();
+  await fbRemove('members/' + id);
   showToast('🗑️ 멤버 삭제 완료');
-}
+};
 
-function addMember() {
+window.addMember = async function() {
   const name = document.getElementById('new-name').value.trim();
   const amount = parseInt(document.getElementById('new-amount').value) || 0;
   const emoji = document.getElementById('new-emoji').value.trim() || '⭐';
   const url = document.getElementById('new-url').value.trim();
   if (!name) { showToast('❌ 이름을 입력해주세요'); return; }
-  const members = getCurrentMembers();
   const id = 'member_' + Date.now();
-  members.push({ id, name, amount, emoji, url });
-  saveMemberData(members);
+  await fbSet('members/' + id, { id, name, amount, emoji, url });
   document.getElementById('new-name').value = '';
   document.getElementById('new-amount').value = '';
   document.getElementById('new-emoji').value = '';
   document.getElementById('new-url').value = '';
-  renderAdminTables();
-  refreshMain();
   showToast('✅ ' + name + ' 추가 완료!');
-}
+};
+
+window.adminSavePledge = async function(id) {
+  const input = document.getElementById('admin-pledge-' + id);
+  if (!input) return;
+  const val = input.value.trim();
+  await fbSet('pledges/' + id, val || null);
+  showToast('✅ 공약 저장 완료!');
+};
 
 // 공지사항
-function getNotices() {
-  try { return JSON.parse(localStorage.getItem('buin_notices') || '[]'); }
-  catch { return []; }
-}
-
-function saveNotices(notices) {
-  localStorage.setItem('buin_notices', JSON.stringify(notices));
-}
-
-function addNotice() {
-  const title = document.getElementById('notice-title-input').value.trim();
-  const body = document.getElementById('notice-body-input').value.trim();
-  if (!title || !body) { showToast('❌ 제목과 내용을 입력해주세요'); return; }
-  const notices = getNotices();
-  notices.unshift({ id: Date.now(), title, body, date: new Date().toLocaleDateString('ko-KR') });
-  saveNotices(notices);
-  document.getElementById('notice-title-input').value = '';
-  document.getElementById('notice-body-input').value = '';
-  renderNoticeList();
-  renderMainNotices();
-  showToast('📢 공지 등록 완료!');
-}
-
-function deleteNotice(id) {
-  const notices = getNotices().filter(n => n.id !== id);
-  saveNotices(notices);
-  renderNoticeList();
-  renderMainNotices();
-  showToast('🗑️ 공지 삭제');
-}
-
 function renderNoticeList() {
-  const notices = getNotices();
   const el = document.getElementById('notice-list');
-  if (!notices.length) {
+  if (!gNotices.length) {
     el.innerHTML = '<p style="color:var(--muted);font-size:0.82rem;text-align:center;padding:20px 0;">등록된 공지사항이 없어요</p>';
     return;
   }
-  el.innerHTML = notices.map(n => `
+  el.innerHTML = gNotices.map(n => `
     <div class="notice-box">
       <button class="notice-del" onclick="deleteNotice(${n.id})">✕</button>
       <div class="notice-title">📢 ${n.title}</div>
@@ -1548,69 +1553,53 @@ function renderNoticeList() {
   `).join('');
 }
 
-function renderMainNotices() {
-  const notices = getNotices();
-  const el = document.getElementById('main-notices');
-  if (!el) return;
-  if (!notices.length) { el.innerHTML = ''; return; }
-  el.innerHTML = notices.map(n => `
-    <div class="notice-banner">
-      <div class="notice-banner-title">📢 ${n.title}</div>
-      <div class="notice-banner-body">${n.body}</div>
-      <div class="notice-banner-date">${n.date}</div>
-    </div>
-  `).join('');
-}
+window.addNotice = async function() {
+  const title = document.getElementById('notice-title-input').value.trim();
+  const body = document.getElementById('notice-body-input').value.trim();
+  if (!title || !body) { showToast('❌ 제목과 내용을 입력해주세요'); return; }
+  const id = Date.now();
+  await fbSet('notices/' + id, { id, title, body, date: new Date().toLocaleDateString('ko-KR') });
+  document.getElementById('notice-title-input').value = '';
+  document.getElementById('notice-body-input').value = '';
+  showToast('📢 공지 등록 완료!');
+};
+
+window.deleteNotice = async function(id) {
+  await fbRemove('notices/' + id);
+  showToast('🗑️ 공지 삭제');
+};
 
 // 초기화
-function resetPledges() {
+window.resetPledges = async function() {
   if (!confirm('모든 공약을 초기화할까요?')) return;
-  localStorage.removeItem('buin_pledges_v2');
+  await fbRemove('pledges');
   showToast('🗑️ 공약 초기화 완료');
-  location.reload();
-}
+};
 
-function resetNotices() {
+window.resetNotices = async function() {
   if (!confirm('공지사항을 전체 삭제할까요?')) return;
-  saveNotices([]);
-  renderNoticeList();
-  renderMainNotices();
+  await fbRemove('notices');
   showToast('🗑️ 공지 전체 삭제');
-}
+};
 
-function resetAll() {
-  if (!confirm('정말로 전체 데이터를 초기화할까요?\n이 작업은 되돌릴 수 없어요!')) return;
-  ['buin_pledges_v2','buin_members_v2','buin_leader_v2','buin_notices'].forEach(k => localStorage.removeItem(k));
+window.resetAll = async function() {
+  if (!confirm('정말로 전체 데이터를 초기화할까요?
+이 작업은 되돌릴 수 없어요!')) return;
+  await Promise.all([fbRemove('pledges'), fbRemove('notices'), fbRemove('members'), fbRemove('leader')]);
   showToast('💣 전체 초기화 완료');
   setTimeout(() => location.reload(), 1200);
-}
-
-// 메인 화면 새로고침 (금액 변경 반영)
-function refreshMain() {
-  // 총합 재계산
-  const members = getCurrentMembers();
-  const ldr = getCurrentLeader();
-  const total = members.reduce((s, m) => s + m.amount, 0) + ldr.amount;
-  const tdEl = document.getElementById('total-display');
-  if (tdEl) tdEl.textContent = total.toLocaleString() + '개';
-  const mcEl = document.getElementById('member-count');
-  if (mcEl) mcEl.textContent = (members.length + 1) + '명';
-
-  // 수장 금액
-  const maEl = document.querySelector('.member-amount');
-  if (maEl) maEl.textContent = ldr.amount.toLocaleString() + '개';
-}
+};
 
 // 토스트
-function showToast(msg) {
+window.showToast = function(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
-}
+};
 
-// 초기 렌더
-renderMainNotices();
+// ===== 시작 =====
+initApp();
 
 </script>
 </body>
