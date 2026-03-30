@@ -992,7 +992,7 @@
   <div class="bar-section" id="bar-chart"></div>
 
   <div class="section-title">👑 수장</div>
-  <div class="leader-card" onclick="toggleLeader()">
+  <div class="leader-card" id="leader-card-toggle">
     <div class="leader-tag">👑 수장</div>
     <div>
       <div class="member-name">Alo.조경훈</div>
@@ -1010,12 +1010,12 @@
     <div id="leader-pledge-edit" style="display:none;">
       <textarea class="pledge-input" id="leader-pledge-input" placeholder="수장의 공약을 입력하세요 🌟"></textarea>
       <div class="pledge-actions">
-        <button class="btn btn-edit" onclick="cancelEdit('leader')">취소</button>
-        <button class="btn btn-save" onclick="savePledge('leader')">저장하기</button>
+        <button class="btn btn-edit" onclick="window.cancelEdit('leader')">취소</button>
+        <button class="btn btn-save" onclick="window.savePledge('leader')">저장하기</button>
       </div>
     </div>
     <div class="edit-btn-wrap admin-only" id="leader-pledge-btn" style="display:none;">
-      <button class="btn btn-edit" onclick="startEdit('leader')">✏️ 공약 편집</button>
+      <button class="btn btn-edit" onclick="window.startEdit('leader')">✏️ 공약 편집</button>
     </div>
   </div>
 
@@ -1025,7 +1025,7 @@
   <footer>버인협회 내부 전용 🌸 외부 공개 금지</footer>
   <!-- 관리자 진입 버튼 -->
   <div class="admin-trigger">
-    <button class="admin-trigger-btn" onclick="openAdminModal()">🔒 관리자</button>
+    <button class="admin-trigger-btn" id="btn-open-admin">🔒 관리자</button>
   </div>
 </div>
 
@@ -1038,8 +1038,8 @@
       onkeydown="if(event.key==='Enter')confirmAdmin()">
     <div class="modal-error" id="admin-pw-error"></div>
     <div class="modal-btns">
-      <button class="btn-cancel-modal" onclick="closeAdminModal()">취소</button>
-      <button class="btn-confirm-modal" onclick="confirmAdmin()">확인</button>
+      <button class="btn-cancel-modal" id="btn-close-admin">취소</button>
+      <button class="btn-confirm-modal" id="btn-confirm-admin">확인</button>
     </div>
   </div>
 </div>
@@ -1049,13 +1049,13 @@
   <div class="admin-panel" id="admin-panel">
     <div class="admin-header">
       <h2>🛠️ 관리자 패널</h2>
-      <button class="admin-logout" onclick="logoutAdmin()">로그아웃</button>
+      <button class="admin-logout" id="btn-logout-admin">로그아웃</button>
     </div>
     <div class="admin-tabs">
-      <button class="admin-tab active" onclick="switchTab('notice')">📢 공지사항</button>
-      <button class="admin-tab" onclick="switchTab('amount')">💰 금액 수정</button>
-      <button class="admin-tab" onclick="switchTab('member')">👥 멤버 관리</button>
-      <button class="admin-tab" onclick="switchTab('reset')">⚠️ 초기화</button>
+      <button class="admin-tab active" data-tab="notice">📢 공지사항</button>
+      <button class="admin-tab" data-tab="amount">💰 금액 수정</button>
+      <button class="admin-tab" data-tab="member">👥 멤버 관리</button>
+      <button class="admin-tab" data-tab="reset">⚠️ 초기화</button>
     </div>
     <div class="admin-content">
 
@@ -1071,7 +1071,7 @@
             <label class="form-label">내용</label>
             <textarea class="pledge-input" id="notice-body-input" placeholder="공지 내용을 입력하세요..." style="min-height:70px;"></textarea>
           </div>
-          <button class="btn btn-save" onclick="addNotice()">📢 공지 등록</button>
+          <button class="btn btn-save" id="btn-add-notice">📢 공지 등록</button>
         </div>
       </div>
 
@@ -1117,7 +1117,7 @@
               <label class="form-label">방송국 URL</label>
               <input class="form-input" id="new-url" placeholder="https://..." style="width:200px;">
             </div>
-            <button class="btn-sm btn-sm-purple" onclick="addMember()" style="height:36px;margin-top:18px;">추가</button>
+            <button class="btn-sm btn-sm-purple" id="btn-add-member" style="height:36px;margin-top:18px;">추가</button>
           </div>
         </div>
       </div>
@@ -1127,17 +1127,17 @@
         <div class="danger-zone" style="margin-bottom:16px;">
           <h4>🗑️ 공약 전체 초기화</h4>
           <p>모든 멤버의 공약 내용이 삭제됩니다. 되돌릴 수 없어요!</p>
-          <button class="btn-sm btn-sm-red" onclick="resetPledges()">공약 초기화</button>
+          <button class="btn-sm btn-sm-red" id="btn-reset-pledges">공약 초기화</button>
         </div>
         <div class="danger-zone" style="margin-bottom:16px;">
           <h4>📢 공지사항 전체 삭제</h4>
           <p>등록된 공지사항이 모두 삭제됩니다.</p>
-          <button class="btn-sm btn-sm-red" onclick="resetNotices()">공지 전체 삭제</button>
+          <button class="btn-sm btn-sm-red" id="btn-reset-notices">공지 전체 삭제</button>
         </div>
         <div class="danger-zone">
           <h4>💣 전체 데이터 초기화</h4>
           <p>금액, 공약, 공지, 추가 멤버 등 모든 데이터가 삭제됩니다. 정말 조심하세요!</p>
-          <button class="btn-sm btn-sm-red" onclick="resetAll()">전체 초기화</button>
+          <button class="btn-sm btn-sm-red" id="btn-reset-all">전체 초기화</button>
         </div>
       </div>
 
@@ -1623,8 +1623,7 @@ window.resetNotices = async function() {
 };
 
 window.resetAll = async function() {
-  if (!confirm('정말로 전체 데이터를 초기화할까요?
-이 작업은 되돌릴 수 없어요!')) return;
+  if (!confirm('정말로 전체 데이터를 초기화할까요?\n이 작업은 되돌릴 수 없어요!')) return;
   await Promise.all([fbRemove('pledges'), fbRemove('notices'), fbRemove('members'), fbRemove('leader')]);
   showToast('💣 전체 초기화 완료');
   setTimeout(() => location.reload(), 1200);
@@ -1640,6 +1639,53 @@ window.showToast = function(msg) {
 
 // ===== 시작 =====
 initApp();
+
+// ===== 이벤트 리스너 등록 (module 스코프 문제 해결) =====
+document.addEventListener('DOMContentLoaded', () => {
+  // 관리자 버튼
+  const btnOpenAdmin = document.getElementById('btn-open-admin');
+  if (btnOpenAdmin) btnOpenAdmin.addEventListener('click', openAdminModal);
+
+  const btnCloseAdmin = document.getElementById('btn-close-admin');
+  if (btnCloseAdmin) btnCloseAdmin.addEventListener('click', closeAdminModal);
+
+  const btnConfirmAdmin = document.getElementById('btn-confirm-admin');
+  if (btnConfirmAdmin) btnConfirmAdmin.addEventListener('click', confirmAdmin);
+
+  const btnLogout = document.getElementById('btn-logout-admin');
+  if (btnLogout) btnLogout.addEventListener('click', logoutAdmin);
+
+  // 비밀번호 입력 엔터키
+  const pwInput = document.getElementById('admin-pw-input');
+  if (pwInput) pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmAdmin(); });
+
+  // 탭 버튼
+  document.querySelectorAll('.admin-tab[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // 수장 카드 토글
+  const leaderCard = document.getElementById('leader-card-toggle');
+  if (leaderCard) leaderCard.addEventListener('click', toggleLeader);
+
+  // 공지 등록
+  const btnAddNotice = document.getElementById('btn-add-notice');
+  if (btnAddNotice) btnAddNotice.addEventListener('click', addNotice);
+
+  // 멤버 추가
+  const btnAddMember = document.getElementById('btn-add-member');
+  if (btnAddMember) btnAddMember.addEventListener('click', addMember);
+
+  // 초기화 버튼들
+  const btnResetPledges = document.getElementById('btn-reset-pledges');
+  if (btnResetPledges) btnResetPledges.addEventListener('click', resetPledges);
+
+  const btnResetNotices = document.getElementById('btn-reset-notices');
+  if (btnResetNotices) btnResetNotices.addEventListener('click', resetNotices);
+
+  const btnResetAll = document.getElementById('btn-reset-all');
+  if (btnResetAll) btnResetAll.addEventListener('click', resetAll);
+});
 
 </script>
 </body>
